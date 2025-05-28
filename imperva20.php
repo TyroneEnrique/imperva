@@ -1,11 +1,15 @@
 <?php
 
-///echo (phpinfo());
+echo('aplicacion pphp');
+
+//echo (phpinfo());
+die();
 set_time_limit(0);
 date_default_timezone_set('America/Guayaquil');
 
 global $numerotransacciones;
 $numerotransacciones=50;
+global $filePath;
 
 global $contador;
 global $contadorwebup;
@@ -23,14 +27,20 @@ global $cuenta;
 global $usuariowebhookimperva;
 global $clavewebhook;
 global $directorioBase;
+global $sistemaoperativo;
 
 $directorioBase = crearDirectorio();
 // Función para crear el directorio 
 function crearDirectorio()
 {   
     global $directorioBase;
+    global $sistemaoperativo;
+
     $sistemaoperativo = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') ? 'Windows' : 'Linux';
     $directorioBase = ($sistemaoperativo === 'Windows') ? 'C:\\impervalogs' : '/opt/impervalogs';
+    echo("Directorio  base linea 38    "+  $directorioBase);
+
+	
 
     if (!file_exists( $directorioBase)) {
         if (!mkdir($directorioBase, 0777, true)) {
@@ -42,11 +52,11 @@ function crearDirectorio()
             crearArchivosLog();
         }
     } else{
-        registrarLogregistros(".El directorio '$directorioBase' es existente.");
         crearArchivosLog();
     }
     return $directorioBase;
 }
+
 
 function crearArchivosLog() {
     global $directorioBase; // Asegura que usemos la ruta correcta
@@ -54,7 +64,8 @@ function crearArchivosLog() {
     $archivos = [
         'errores.log',
         'taskimperva.txt',
-        'log_encola.txt'
+        'log_encola.txt',
+	    'fecha.txt'
     ];
 
     foreach ($archivos as $archivo) {
@@ -79,14 +90,15 @@ function crearArchivosLog() {
 
 //***variables de entorno***
 //Varibles de entorno webhook
-
-$filePath= str_replace(' ', '', 'C:\\impervalogs\\impervaproperties.txt');
+$filePath = ($sistemaoperativo === 'Windows') ? 'C:\\impervalogs\\impervaproperties.txt' : '/opt/impervalogs/impervaproperties.txt';
+echo ("linea 91 "+ $filePath);
+die();
 
 if (!file_exists($filePath)) {
     crearDirectorio();
     registrarLogerrores("El archivo impervaproperties.txt no existe en la ruta C:\\eset\\impervaproperties.txt");
-    registrarLogerrores("No se consulto evento, falta el archivo de properties coloquelo configure y vuelva a ejecutar la aplicación");
-    die("El archivo impervaproperties.txt no existe en la ruta C:\\impervalogs\\impervaproperties.txt.\n");
+    registrarLogerrores("No se consulto evento, falta el archivo de properties coloquelo configure y vuelva a ejecutar la aplicación .\n");
+    die("El archivo impervaproperties.txt no existe en la carpeta impervalogs.\n");
 }
 
 $properties = parse_ini_file($filePath);
@@ -104,7 +116,9 @@ $cuenta = str_replace(' ', '', $properties['CAID']);
 $contador = 0;
 $contadorwebup = 0;
 
-$file_path = realpath("C:\\impervalogs\\log_encola.txt");  // Usa realpath para verificar
+
+$file_path=($sistemaoperativo === 'Windows') ? 'C:\\impervalogs\\log_encola.txt' : '/opt/impervalogs/log_encola.txt';
+
 $num_cola=contarLineasEnCola($file_path);
 
 function contarLineasEnCola($file_path) {
@@ -131,12 +145,21 @@ function registrarLogerrores($mensaje)
     file_put_contents($logFile, $mensajeCompleto, FILE_APPEND);
 }
 
+function registrarFecha($mensaje)
+{
+   global $directorioBase;
+   $logFile = $directorioBase . DIRECTORY_SEPARATOR . 'fecha.txt';
+   file_put_contents($logFile, $mensaje);
+}
+
+
 function registrarLogregistros($mensaje)
 {
     global $directorioBase;
     $logFile = $directorioBase . DIRECTORY_SEPARATOR . 'taskimperva.txt';
     $fecha = date('Y-m-d H:i:s');
-    $mensajeCompleto = "[{$fecha}] {$mensaje}" . PHP_EOL;
+    $mensajeCompleto = "[{$fecha}] {$mensaje}" ;
+
     file_put_contents($logFile,$mensajeCompleto, FILE_APPEND);
 }
 
@@ -171,13 +194,34 @@ $fechaincial='' ;
  $fechafinal='';
 
 $fechanown = new DateTime();
+$logFile = $directorioBase . DIRECTORY_SEPARATOR . 'fecha.txt';
 
-$fechaincial = $fechanown->format('Y-m-d\TH:i:s');
-$fechafinal = $fechanown->sub(new DateInterval('PT1H'))->format('Y-m-d\TH:i:s');
+if (file_exists($logFile)) {
+    $contenido = file_get_contents($logFile);
+       if(!empty( $contenido)){
+	    $fecha= new DateTime($contenido);
+	    $fecha->add(new DateInterval('PT1S'));
+            $fechaincial= $fecha->format('Y-m-d\TH:i:s');
 
-$fechaincial = "2025-05-19T00:00:00";
-$fechafinal = "2025-05-21T23:00:00";
+             $fecha = new DateTime();
+             $fechafinal = $fecha->format('Y-m-d H:i:s');	
+           }
+	else{
+	       $fechaincial = $fechanown->sub(new DateInterval('PT1H'))->format('Y-m-d\TH:i:s');
+ 	        //$startTime = $fechanown->sub(new DateInterval('PT2M'))->format('Y-m-d\TH:i:s');
 
+		$fecha = new DateTime();
+                $fechafinal = $fecha->format('Y-m-d H:i:s');			
+	      }
+   }
+/*
+$fechaincial = "2025-02-01T00:00:00";
+$fechafinal = "2025-02-01T23:00:00";
+*/
+
+
+
+registrarFecha($fechafinal);
 $starmilisegundo = convertirFechaAMilisegundos($fechaincial);
 $endmilisegundo = convertirFechaAMilisegundos($fechafinal);
 
@@ -291,8 +335,6 @@ function realizarSolicitudWebhook($url, $data, $headers)
 // Función para enviar datos al webhook
 function enviarWebhook($data)
 {
-
-
     global $contadorwebup;
     global $file_path;
 
@@ -317,6 +359,7 @@ function enviarWebhook($data)
     {
         //$response = realizarSolicitudWebhook($webhookUrl, $data, $headers);
         $response['http_code']=200;
+        
         if($response['http_code'] ===200)
         {
 
@@ -336,7 +379,6 @@ try
 {
     $responseDetections = realizarSolicitudApi($urlDetections, null, $headersDetections, false);
   
-   
     if($responseDetections['http_code'] ==200)
     {
         $responseDataDetections = json_decode($responseDetections['body'], true);
@@ -361,8 +403,6 @@ try
                                 }
                                 else{
 
-                                   
-                                
                                     $errorResponse = json_decode($responsearchip['body'], true); 
                                     // Verificar si la respuesta contiene "errMsg" (Caso 1)
                                     if (isset($errorResponse['errMsg']) && isset($errorResponse['errCode'])) {
@@ -422,16 +462,24 @@ try
 
         
             $num_cola=contarLineasEnCola($file_path);
-            registrarLogregistros("Imperva  se enviaron los datos entre la fecha de inicio ". $fechaincial." y la fecha de fin  ". $fechafinal." se encontraron ". $contador." registros, de los cuales   " . $contadorwebup." Recibidos en el Webhook ".$contadorwebup." fueron recibidos en el Webhook. Actualmente, hay  ".$num_cola.' incidentes en cola.'. PHP_EOL, FILE_APPEND);
+            registrarLogregistros("Imperva  entre los datos de la fecha de inicio ". $fechaincial." y la fecha de fin  ". $fechafinal." se encontraron ". $contador." registros, de los cuales se enviaron  " . $contadorwebup." Recibidos en el Webhook ".$contadorwebup." fueron recibidos en el Webhook. Actualmente, hay  ".$num_cola.' incidentes en cola.'. PHP_EOL, FILE_APPEND);
            
-            echo ("Imperva Fecha inicio ". $fechaincial." Fecha fin ". $fechafinal." Registros que cumplen con las condiciones  detectados " . $contador . "  Recibidos en el Webhook " . $contadorwebup." Registro en cola ".$num_cola. PHP_EOL);
+            echo ("Imperva  entre los datos de la fecha de inicio ". $fechaincial." y la fecha de fin  ". $fechafinal." se encontraron ". $contador." registros, de los cuales se enviaron  " . $contadorwebup." Recibidos en el Webhook ".$contadorwebup." fueron recibidos en el Webhook. Actualmente, hay  ".$num_cola.' incidentes en cola.'. PHP_EOL);
         } 
         else 
         {
             $num_cola=contarLineasEnCola($file_path);
             echo "Imperva no se encontraron detecciones Fecha inicio ". $fechaincial." Fecha fin ". $fechafinal," registros en cola ".$num_cola." ";
-            registrarLogregistros("Imperva Fecha inicio ". $fechaincial." Fecha fin ". $fechafinal." registro encontrados". $contador." Recibidos en el Webhook ".$contadorwebup."Registro en cola ".$num_cola. PHP_EOL, FILE_APPEND);
+            registrarLogregistros("Imperva Fecha inicio ". $fechaincial." Fecha fin ". $fechafinal." registro encontrados ". $contador." Recibidos en el Webhook ".$contadorwebup." Registro en cola ".$num_cola. PHP_EOL, FILE_APPEND);
         }
+
+	
+	$logFile = $directorioBase . DIRECTORY_SEPARATOR . 'fecha.txt';
+    	if (file_exists($logFile)) {
+	     $contenido = file_get_contents($logFile);
+	     registrarFecha( $fechafinal);
+    	}
+
 
     }
     else
@@ -464,5 +512,3 @@ catch (Exception $e) {
 
         
     
-
-
